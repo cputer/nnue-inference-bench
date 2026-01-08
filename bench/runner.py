@@ -81,24 +81,64 @@ def benchmark_cpu(
 
 
 def detect_gpu():
-    import subprocess
-    s = {"available": False, "name": None, "blocked_reason": None}
-    try:
-        r = subprocess.run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-                          capture_output=True, text=True, timeout=5)
-        if r.returncode == 0:
-            s["name"] = r.stdout.strip().split(chr(10))[0]
-            if not (Path(__file__).parent.parent / "native-cuda" / "nnue_kernels.dll").exists():
-                s["blocked_reason"] = "CUDA kernels not compiled"
-            else:
-                s["available"] = True
-        else:
-            s["blocked_reason"] = "nvidia-smi failed"
-    except FileNotFoundError:
-        s["blocked_reason"] = "nvidia-smi not found"
-    except Exception as e:
-        s["blocked_reason"] = str(e)
-    return s
+    from infer_gpu import get_gpu_status
+    status = get_gpu_status()
+    return {
+        "available": status.get("available", False),
+        "name": status.get("gpu_name"),
+        "blocked_reason": status.get("blocked_reason"),
+    }
+
+
+def benchmark_gpu(model, positions, warmup_iters, measured_iters):
+    """Run GPU benchmark."""
+    from infer_gpu import GPUInference, _GPU_STATUS
+    from infer_cpu import extract_halfkp_features
+
+    gpu = GPUInference(model)
+    
+    # Pre-extract features
+    features_w, features_b, stm_list = [], [], []
+    for pos in positions:
+        fw, fb = extract_halfkp_features(pos)
+        features_w.append(fw)
+        features_b.append(fb)
+        stm_list.append(pos.stm)
+
+    print(f"  Warmup: {warmup_iters} iterations...")
+    for _ in range(warmup_iters):
+        _ = gpu.forward_batch(features_w, features_b, stm_list)
+        _GPU_STATUS["_lib"].nnue_sync()
+
+    print(f"  Measured: {measured_iters} iterations...")
+    times_ms = []
+    all_evals = None
+
+    for i in range(measured_iters):
+        start = time.perf_counter()
+        evals = gpu.forward_batch(features_w, features_b, stm_list)
+        _GPU_STATUS["_lib"].nnue_sync()
+        end = time.perf_counter()
+        times_ms.append((end - start) * 1000)
+        if i == 0:
+            all_evals = list(evals)
+
+    times_arr = np.array(times_ms)
+    p50 = float(np.percentile(times_arr, 50))
+    p95 = float(np.percentile(times_arr, 95))
+    mean_ms = float(np.mean(times_arr))
+    throughput = (len(positions) / (p50 / 1000)) if p50 > 0 else 0
+    checksum = compute_checksum(all_evals)
+
+    return {
+        "times_ms": times_ms,
+        "p50_ms": p50,
+        "p95_ms": p95,
+        "mean_ms": mean_ms,
+        "throughput_pos_per_s": throughput,
+        "checksum": checksum,
+        "positions_per_batch": len(positions),
+    }
 
 def get_git_commit():
     import subprocess
@@ -132,6 +172,7 @@ def main() -> int:
     ap.add_argument("--iters", "-i", type=int, default=20)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--output", "-o", default=None)
+    ap.add_argument("--device", "-d", choices=["cpu", "gpu", "both"], default="both")
     args = ap.parse_args()
 
     repo_root = Path(__file__).parent.parent

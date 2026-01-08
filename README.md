@@ -27,7 +27,7 @@ python tools/smoke_cpu.py
 <!-- AUTO:BENCHMARK_START -->
 | Device | Batch | p50 (ms) | p95 (ms) | Throughput | Checksum |
 |--------|-------|----------|----------|------------|----------|
-| CPU | 1000 | 35.603 | 38.219 | 28,088 pos/s | 0x6C1B4100 |
+| GPU | 1000 | 2.288 | 2.548 | 437,149 pos/s | 0x6C1B4100 |
 
 *Updated: 2026-01-08 | Model: nikola_d12v2_gold.nknn*
 <!-- AUTO:BENCHMARK_END -->
