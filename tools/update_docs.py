@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Update README.md benchmark section from LATEST.json."""
+"""Update README.md benchmark section from LATEST_NNUE.json."""
 
 from __future__ import annotations
 import json
@@ -10,7 +10,7 @@ from pathlib import Path
 def main() -> int:
     repo_root = Path(__file__).parent.parent
     readme_path = repo_root / "README.md"
-    json_path = repo_root / "bench" / "results" / "LATEST.json"
+    json_path = repo_root / "bench" / "results" / "LATEST_NNUE.json"
 
     if not json_path.exists():
         print(f"Error: {json_path} not found. Run benchmark first.")

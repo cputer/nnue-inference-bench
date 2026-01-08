@@ -80,13 +80,47 @@ def benchmark_cpu(
     }
 
 
-def get_system_info() -> Dict[str, str]:
+def detect_gpu():
+    import subprocess
+    s = {"available": False, "name": None, "blocked_reason": None}
+    try:
+        r = subprocess.run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                          capture_output=True, text=True, timeout=5)
+        if r.returncode == 0:
+            s["name"] = r.stdout.strip().split(chr(10))[0]
+            if not (Path(__file__).parent.parent / "native-cuda" / "nnue_kernels.dll").exists():
+                s["blocked_reason"] = "CUDA kernels not compiled"
+            else:
+                s["available"] = True
+        else:
+            s["blocked_reason"] = "nvidia-smi failed"
+    except FileNotFoundError:
+        s["blocked_reason"] = "nvidia-smi not found"
+    except Exception as e:
+        s["blocked_reason"] = str(e)
+    return s
+
+def get_git_commit():
+    import subprocess
+    try:
+        r = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                          capture_output=True, text=True, cwd=Path(__file__).parent.parent)
+        return r.stdout.strip() if r.returncode == 0 else "unknown"
+    except:
+        return "unknown"
+
+def get_system_info():
+    gpu = detect_gpu()
     return {
         "platform": platform.system(),
         "platform_release": platform.release(),
         "processor": platform.processor(),
         "python_version": platform.python_version(),
         "numpy_version": np.__version__,
+        "git_commit": get_git_commit(),
+        "gpu_name": gpu["name"],
+        "gpu_available": gpu["available"],
+        "gpu_blocked_reason": gpu["blocked_reason"],
     }
 
 
@@ -106,7 +140,7 @@ def main() -> int:
     if args.output:
         output_path = Path(args.output)
     else:
-        output_path = repo_root / "bench" / "results" / "LATEST.json"
+        output_path = repo_root / "bench" / "results" / "LATEST_NNUE.json"
 
     print(f"Loading model: {model_path}")
     if not model_path.exists():
