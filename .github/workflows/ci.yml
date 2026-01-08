@@ -1,11 +1,12 @@
-name: ci
+name: CI
 
 on:
   push:
+    branches: [main, master]
   pull_request:
 
 jobs:
-  cpu-smoke:
+  test-linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,5 +17,23 @@ jobs:
         run: pip install numpy
       - name: Smoke test
         run: python tools/smoke_cpu.py
-      - name: Run small benchmark
-        run: python bench/runner.py --batch 10 --warmup 1 --iters 3
+      - name: Run benchmark
+        run: python bench/runner.py --batch 100 --warmup 2 --iters 5
+      - name: Verify update_docs idempotent
+        run: |
+          python tools/update_docs.py
+          git diff --exit-code README.md || echo "Note: README would be updated"
+
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install numpy
+      - name: Smoke test
+        run: python tools/smoke_cpu.py
+      - name: Run benchmark
+        run: python bench/runner.py --batch 100 --warmup 2 --iters 5

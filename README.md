@@ -27,10 +27,20 @@ python tools/smoke_cpu.py
 <!-- AUTO:BENCHMARK_START -->
 | Device | Batch | p50 (ms) | p95 (ms) | Throughput | Checksum |
 |--------|-------|----------|----------|------------|----------|
-| CPU | 1000 | 35.152 | 37.397 | 28,448 pos/s | 0x6C1B4100 |
+| CPU | 1000 | 36.316 | 37.851 | 27,536 pos/s | 0x6C1B4100 |
 
 *Updated: 2026-01-08 | Model: nikola_d12v2_gold.nknn*
 <!-- AUTO:BENCHMARK_END -->
+
+## GPU Status
+
+<!-- AUTO:GPU_STATUS_START -->
+| Device | Status | Reason |
+|--------|--------|--------|
+| NVIDIA GeForce RTX 4070 Laptop GPU | Blocked | CUDA kernels not compiled |
+<!-- AUTO:GPU_STATUS_END -->
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for GPU enablement instructions.
 
 ## Model
 
@@ -49,10 +59,14 @@ nnue-inference-bench/
 |   |-- runner.py       # Main benchmark CLI
 |   |-- results/        # JSON outputs (LATEST.json, raw/)
 |   +-- result_schema.json
-|-- tools/              # Utilities
-|   |-- inspect_nknn.py # Model inspector/loader
-|   |-- infer_cpu.py    # CPU reference inference
-|   +-- smoke_cpu.py    # CI smoke test
+|-- tools/              # Core implementation
+|   |-- inspect_nknn.py # NKNN loader
+|   |-- infer_cpu.py    # CPU inference
+|   |-- infer_gpu.py    # GPU inference (stub)
+|   |-- smoke_cpu.py    # CI smoke test
+|   +-- update_docs.py  # AUTO doc generator
+|-- native-cuda/        # CUDA kernels (optional)
+|-- docs/               # Documentation
 |-- models/             # NKNN model files
 |-- data/               # Test position data
 |-- include/            # Format specifications
