@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "fields": {
+    "device": "cpu|gpu",
+    "gpu_name": "string",
+    "batch": "int",
+    "iters": "int",
+    "p50_batch_ms": "float",
+    "p95_batch_ms": "float",
+    "throughput_pos_per_s": "float",
+    "checksum": "uint32"
+  }
+}

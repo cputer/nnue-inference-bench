@@ -1,0 +1,19 @@
+# build artifacts
+build/
+out/
+dist/
+*.log
+*.tmp
+
+# python
+.venv/
+__pycache__/
+*.pyc
+
+# results
+bench/results/
+runs/
+
+# OS
+.DS_Store
+Thumbs.db
