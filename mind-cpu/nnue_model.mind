@@ -1,0 +1,119 @@
+// mind-cpu/nnue_model.mind - NKNN v2 model loader
+// Architecture: 40960 -> 256 -> 32 -> 32 -> 1
+
+import std.mem
+import std.io
+import std.simd
+
+pub const L1_INPUT: usize = 40960;
+pub const L1_OUTPUT: usize = 256;
+pub const L2_INPUT: usize = 512;
+pub const L2_OUTPUT: usize = 32;
+pub const L3_OUTPUT: usize = 32;
+pub const L4_OUTPUT: usize = 1;
+
+pub const SCALE_SPARSE: f32 = 128.0;
+pub const SCALE_DENSE_W: f32 = 64.0;
+pub const SCALE_DENSE_B: f32 = 128.0;
+
+pub const NKNN_MAGIC: u32 = 0x4E4B4E4E;
+pub const NKNN_VERSION: u32 = 2;
+
+pub const NKNNModel = struct {
+    // Dequantized float weights for CPU inference
+    W1: []f32,      // [40960 * 256]
+    B1: [L1_OUTPUT]f32,
+    W2: [L2_INPUT * L2_OUTPUT]f32,
+    B2: [L2_OUTPUT]f32,
+    W3: [L3_OUTPUT * L3_OUTPUT]f32,
+    B3: [L3_OUTPUT]f32,
+    W4: [L3_OUTPUT]f32,
+    B4: f32,
+
+    pub fn init() NKNNModel {
+        return NKNNModel{
+            .W1 = mem.alloc(f32, L1_INPUT * L1_OUTPUT),
+            .B1 = mem.zeroes([L1_OUTPUT]f32),
+            .W2 = mem.zeroes([L2_INPUT * L2_OUTPUT]f32),
+            .B2 = mem.zeroes([L2_OUTPUT]f32),
+            .W3 = mem.zeroes([L3_OUTPUT * L3_OUTPUT]f32),
+            .B3 = mem.zeroes([L3_OUTPUT]f32),
+            .W4 = mem.zeroes([L3_OUTPUT]f32),
+            .B4 = 0.0,
+        };
+    }
+
+    pub fn deinit(self: *NKNNModel) void {
+        mem.free(self.W1);
+    }
+};
+
+pub fn load_nknn(path: []const u8) !NKNNModel {
+    var file = try io.File.open(path, .read);
+    defer file.close();
+
+    // Read and verify header
+    var magic: u32 = try file.readInt(u32, .little);
+    var version: u32 = try file.readInt(u32, .little);
+
+    if magic != NKNN_MAGIC or version != NKNN_VERSION {
+        return error.InvalidFormat;
+    }
+
+    var model = NKNNModel.init();
+
+    // Read W1 (i16) and dequantize
+    var w1_raw = mem.alloc(i16, L1_INPUT * L1_OUTPUT);
+    defer mem.free(w1_raw);
+    try file.readAll(mem.asBytes(w1_raw));
+
+    for w1_raw |val, i| {
+        model.W1[i] = @intToFloat(f32, val) / SCALE_SPARSE;
+    }
+
+    // Read B1 (i16) and dequantize
+    var b1_raw: [L1_OUTPUT]i16 = undefined;
+    try file.readAll(mem.asBytes(&b1_raw));
+    for b1_raw |val, i| {
+        model.B1[i] = @intToFloat(f32, val) / SCALE_SPARSE;
+    }
+
+    // Read W2 (i8) and dequantize
+    var w2_raw: [L2_INPUT * L2_OUTPUT]i8 = undefined;
+    try file.readAll(mem.asBytes(&w2_raw));
+    for w2_raw |val, i| {
+        model.W2[i] = @intToFloat(f32, val) / SCALE_DENSE_W;
+    }
+
+    // Read B2 (i16) and dequantize
+    var b2_raw: [L2_OUTPUT]i16 = undefined;
+    try file.readAll(mem.asBytes(&b2_raw));
+    for b2_raw |val, i| {
+        model.B2[i] = @intToFloat(f32, val) / SCALE_DENSE_B;
+    }
+
+    // Read W3, B3, W4, B4 similarly
+    var w3_raw: [L3_OUTPUT * L3_OUTPUT]i8 = undefined;
+    try file.readAll(mem.asBytes(&w3_raw));
+    for w3_raw |val, i| {
+        model.W3[i] = @intToFloat(f32, val) / SCALE_DENSE_W;
+    }
+
+    var b3_raw: [L3_OUTPUT]i16 = undefined;
+    try file.readAll(mem.asBytes(&b3_raw));
+    for b3_raw |val, i| {
+        model.B3[i] = @intToFloat(f32, val) / SCALE_DENSE_B;
+    }
+
+    var w4_raw: [L3_OUTPUT]i8 = undefined;
+    try file.readAll(mem.asBytes(&w4_raw));
+    for w4_raw |val, i| {
+        model.W4[i] = @intToFloat(f32, val) / SCALE_DENSE_W;
+    }
+
+    var b4_raw: i16 = undefined;
+    try file.readAll(mem.asBytes(&b4_raw));
+    model.B4 = @intToFloat(f32, b4_raw) / SCALE_DENSE_B;
+
+    return model;
+}

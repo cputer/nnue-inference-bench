@@ -15,14 +15,14 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: pip install numpy
-      - name: Smoke test
+      - name: Smoke test (CPU inference)
         run: python tools/smoke_cpu.py
-      - name: Run benchmark
-        run: python bench/runner.py --batch 100 --warmup 2 --iters 5
-      - name: Verify update_docs idempotent
-        run: |
-          python tools/update_docs.py
-          git diff --exit-code README.md || echo "Note: README would be updated"
+      - name: Run CPU benchmark
+        run: python tools/run_benchmark.py --device cpu -o bench/results/ci_cpu.json
+      - name: Validate checksum
+        run: python tools/validate_results.py bench/results/ci_cpu.json
+      - name: Validate README claims
+        run: python tools/validate_claims.py
 
   test-windows:
     runs-on: windows-latest
@@ -33,7 +33,9 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: pip install numpy
-      - name: Smoke test
+      - name: Smoke test (CPU inference)
         run: python tools/smoke_cpu.py
-      - name: Run benchmark
-        run: python bench/runner.py --batch 100 --warmup 2 --iters 5
+      - name: Run CPU benchmark
+        run: python tools/run_benchmark.py --device cpu -o bench/results/ci_cpu.json
+      - name: Validate checksum
+        run: python tools/validate_results.py bench/results/ci_cpu.json

@@ -20,9 +20,10 @@ $nvccArgs = @(
     '-o', 'build\nnue_cuda.dll',
     'nnue_kernels.cu',
     '-O3',
-    '-arch=sm_75',
+    '-arch=sm_89',
     '-gencode=arch=compute_75,code=sm_75',
     '-gencode=arch=compute_86,code=sm_86',
+    '-gencode=arch=compute_89,code=sm_89',
     '-Xcompiler', '/MD /O2',
     '-ccbin', $ccbin
 )

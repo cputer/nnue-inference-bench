@@ -1,0 +1,47 @@
+name: GPU Benchmark (Self-Hosted)
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_full:
+        description: 'Run full benchmark (50 iters)'
+        required: false
+        default: 'false'
+  schedule:
+    # Run weekly on Sunday at 00:00 UTC
+    - cron: '0 0 * * 0'
+
+jobs:
+  gpu-benchmark:
+    runs-on: [self-hosted, gpu, windows]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check GPU availability
+        run: nvidia-smi
+
+      - name: Install Python dependencies
+        run: pip install numpy
+
+      - name: Build CUDA kernels
+        run: |
+          cd native-cuda
+          powershell -ExecutionPolicy Bypass -File build.ps1
+
+      - name: Build C++ SIMD (Mind CPU)
+        run: |
+          cd native-cpp
+          powershell -ExecutionPolicy Bypass -File build_simd.ps1
+
+      - name: Run full benchmark
+        run: |
+          python tools/run_benchmark.py --device all -o bench/results/gpu_benchmark.json
+
+      - name: Validate all checksums
+        run: python tools/validate_results.py bench/results/gpu_benchmark.json
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: gpu-benchmark-results
+          path: bench/results/gpu_benchmark.json

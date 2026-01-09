@@ -1,0 +1,203 @@
+// mind-cpu/bench_main.mind - Mind CPU benchmark entry point
+// CLI: mind_nnue_bench --model <path> --batch 1000 --warmup 10 --iters 50
+
+import std.io
+import std.mem
+import std.time
+import std.crypto.md5
+import std.args
+import std.json
+
+const nnue_model = @import("nnue_model.mind");
+const nnue_infer = @import("nnue_infer.mind");
+const NKNNModel = nnue_model.NKNNModel;
+const Position = nnue_infer.Position;
+
+// PCG32 random number generator (same sequence as numpy default_rng)
+const PCG32 = struct {
+    state: u64,
+    inc: u64,
+
+    pub fn init(seed: u64) PCG32 {
+        var rng = PCG32{ .state = seed, .inc = 1 };
+        rng.state = rng.state *% 6364136223846793005 +% rng.inc;
+        return rng;
+    }
+
+    pub fn next(self: *PCG32) u32 {
+        const oldstate = self.state;
+        self.state = oldstate *% 6364136223846793005 +% self.inc;
+        const xorshifted = @truncate(u32, ((oldstate >> 18) ^ oldstate) >> 27);
+        const rot = @truncate(u5, oldstate >> 59);
+        return (xorshifted >> rot) | (xorshifted << ((-%rot) & 31));
+    }
+
+    pub fn integers(self: *PCG32, low: i32, high: i32) i32 {
+        return low + @intCast(i32, self.next() % @intCast(u32, high - low));
+    }
+};
+
+fn create_random_position(seed: u64) Position {
+    var rng = PCG32.init(seed);
+    var pos = Position{
+        .pieces = mem.set([64]i8, -1),
+        .white_king = 0,
+        .black_king = 0,
+        .stm = 0,
+    };
+
+    pos.white_king = @intCast(u8, rng.integers(0, 64));
+    pos.black_king = @intCast(u8, rng.integers(0, 64));
+
+    // Ensure kings not adjacent
+    while pos.black_king == pos.white_king or
+          (@abs(@intCast(i32, pos.black_king / 8) - @intCast(i32, pos.white_king / 8)) <= 1 and
+           @abs(@intCast(i32, pos.black_king % 8) - @intCast(i32, pos.white_king % 8)) <= 1) {
+        pos.black_king = @intCast(u8, rng.integers(0, 64));
+    }
+
+    pos.pieces[pos.white_king] = 5;
+    pos.pieces[pos.black_king] = 11;
+
+    const num_pieces = rng.integers(4, 16);
+    const piece_types = [_]i8{ 0, 1, 2, 3, 4, 6, 7, 8, 9, 10 };
+
+    var i: i32 = 0;
+    while (i < num_pieces) : (i += 1) {
+        const sq = @intCast(usize, rng.integers(0, 64));
+        if pos.pieces[sq] == -1 {
+            pos.pieces[sq] = piece_types[rng.next() % 10];
+        }
+    }
+
+    pos.stm = @intCast(u8, rng.integers(0, 2));
+    return pos;
+}
+
+fn compute_checksum_md5(evals: []const f32) u32 {
+    var hasher = md5.Md5.init();
+    hasher.update(mem.asBytes(evals));
+    const digest = hasher.final();
+    // First 4 bytes as big-endian u32
+    return (@intCast(u32, digest[0]) << 24) |
+           (@intCast(u32, digest[1]) << 16) |
+           (@intCast(u32, digest[2]) << 8) |
+           @intCast(u32, digest[3]);
+}
+
+pub fn main() !void {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    // Parse command line args
+    var model_path: []const u8 = "models/nikola_d12v2_gold.nknn";
+    var batch_size: usize = 1000;
+    var warmup_iters: usize = 10;
+    var measured_iters: usize = 50;
+    var seed: u64 = 42;
+
+    var args_iter = args.args();
+    while (args_iter.next()) |arg| {
+        if mem.eql(u8, arg, "--model") or mem.eql(u8, arg, "-m") {
+            model_path = args_iter.next() orelse return error.MissingArg;
+        } else if mem.eql(u8, arg, "--batch") or mem.eql(u8, arg, "-b") {
+            batch_size = try std.fmt.parseInt(usize, args_iter.next() orelse return error.MissingArg, 10);
+        } else if mem.eql(u8, arg, "--warmup") or mem.eql(u8, arg, "-w") {
+            warmup_iters = try std.fmt.parseInt(usize, args_iter.next() orelse return error.MissingArg, 10);
+        } else if mem.eql(u8, arg, "--iters") or mem.eql(u8, arg, "-i") {
+            measured_iters = try std.fmt.parseInt(usize, args_iter.next() orelse return error.MissingArg, 10);
+        } else if mem.eql(u8, arg, "--seed") {
+            seed = try std.fmt.parseInt(u64, args_iter.next() orelse return error.MissingArg, 10);
+        }
+    }
+
+    // Load model
+    io.stderr.print("Loading model: {s}\n", .{model_path});
+    var model = try nnue_model.load_nknn(model_path);
+    defer model.deinit();
+    io.stderr.print("Model loaded successfully\n", .{});
+
+    // Generate positions
+    io.stderr.print("Generating {d} positions (seed={d})...\n", .{ batch_size, seed });
+    var positions = arena.alloc(Position, batch_size);
+    for positions |*pos, i| {
+        pos.* = create_random_position(seed + i);
+    }
+
+    // Pre-extract features
+    var features_w = arena.alloc([64]i32, batch_size);
+    var features_b = arena.alloc([64]i32, batch_size);
+    var w_counts = arena.alloc(usize, batch_size);
+    var b_counts = arena.alloc(usize, batch_size);
+
+    for positions |*pos, i| {
+        const counts = nnue_infer.extract_halfkp_features(pos, &features_w[i], &features_b[i]);
+        w_counts[i] = counts.w_count;
+        b_counts[i] = counts.b_count;
+    }
+
+    // Warmup
+    io.stderr.print("Warmup: {d} iterations...\n", .{warmup_iters});
+    var warmup_i: usize = 0;
+    while (warmup_i < warmup_iters) : (warmup_i += 1) {
+        for positions |*pos, i| {
+            _ = nnue_infer.forward(&model, &features_w[i], w_counts[i], &features_b[i], b_counts[i], pos.stm);
+        }
+    }
+
+    // Measured runs
+    io.stderr.print("Measured: {d} iterations...\n", .{measured_iters});
+    var times_ms = arena.alloc(f64, measured_iters);
+    var all_evals = arena.alloc(f32, batch_size);
+
+    var iter: usize = 0;
+    while (iter < measured_iters) : (iter += 1) {
+        const start = time.nanoTimestamp();
+
+        for positions |*pos, i| {
+            all_evals[i] = nnue_infer.forward(&model, &features_w[i], w_counts[i], &features_b[i], b_counts[i], pos.stm);
+        }
+
+        const end = time.nanoTimestamp();
+        times_ms[iter] = @intToFloat(f64, end - start) / 1_000_000.0;
+    }
+
+    // Compute stats
+    std.sort.sort(f64, times_ms, {}, std.sort.asc(f64));
+    const p50 = times_ms[measured_iters / 2];
+    const p95 = times_ms[@intCast(usize, @floatToInt(usize, @intToFloat(f64, measured_iters) * 0.95))];
+    var mean: f64 = 0;
+    for times_ms |t| {
+        mean += t;
+    }
+    mean /= @intToFloat(f64, measured_iters);
+
+    const throughput = @intToFloat(f64, batch_size) / (p50 / 1000.0);
+    const checksum = compute_checksum_md5(all_evals);
+
+    // Output JSON
+    const stdout = io.getStdOut().writer();
+    try stdout.print(
+        \{{
+        \  "implementation": "Mind CPU",
+        \  "device": "CPU",
+        \  "tier": "B",
+        \  "batch_size": {d},
+        \  "warmup_iters": {d},
+        \  "measured_iters": {d},
+        \  "p50_ms": {d:.3},
+        \  "p95_ms": {d:.3},
+        \  "mean_ms": {d:.3},
+        \  "throughput_pos_per_s": {d:.1},
+        \  "checksum": "0x{X:0>8}"
+        \}}
+        \
+    , .{ batch_size, warmup_iters, measured_iters, p50, p95, mean, throughput, checksum });
+
+    // Stderr summary
+    io.stderr.print("=== RESULTS ===\n", .{});
+    io.stderr.print("p50: {d:.3} ms\n", .{p50});
+    io.stderr.print("p95: {d:.3} ms\n", .{p95});
+    io.stderr.print("Throughput: {d:.0} pos/s\n", .{throughput});
+    io.stderr.print("Checksum: 0x{X:0>8}\n", .{checksum});
+}

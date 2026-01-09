@@ -1,0 +1,66 @@
+{
+  "generated_utc": "2026-01-08",
+  "source_files": [
+    "bench/results/LATEST_NNUE.json"
+  ],
+  "hardware": {
+    "cpu": "Intel Core i7-13700H",
+    "gpu": "NVIDIA GeForce RTX 4070 Laptop GPU",
+    "platform": "Windows 11"
+  },
+  "nnue_inference": {
+    "workload": "NNUE neural network (40960->256->32->32->1)",
+    "model": "nikola_d12v2_gold.nknn",
+    "batch_size": 1000,
+    "measured_iters": 50,
+    "reference_checksum": "0x6C1B4100",
+    "tier": "B (end-to-end)",
+    "results": [
+      {
+        "implementation": "Python reference",
+        "device": "CPU",
+        "p50_ms": 28.0,
+        "throughput_pos_per_s": 35666,
+        "checksum": "0x6C1B4100",
+        "status": "verified"
+      },
+      {
+        "implementation": "C++ baseline",
+        "device": "CPU",
+        "p50_ms": 12.2,
+        "throughput_pos_per_s": 81687,
+        "checksum": "0x6C1B4100",
+        "status": "verified",
+        "speedup_vs_python": 2.29
+      },
+      {
+        "implementation": "Mind CPU (SIMD)",
+        "device": "CPU",
+        "p50_ms": 2.3,
+        "throughput_pos_per_s": 438712,
+        "checksum": "0x6C1B4100",
+        "status": "verified",
+        "speedup_vs_cpp": 5.37,
+        "speedup_vs_python": 12.3
+      },
+      {
+        "implementation": "CUDA GPU",
+        "device": "GPU",
+        "p50_ms": 2.3,
+        "throughput_pos_per_s": 443105,
+        "checksum": "0x6C1B4100",
+        "status": "verified",
+        "speedup_vs_cpp": 5.43
+      }
+    ]
+  },
+  "key_claims": {
+    "verified": [
+      "Mind CPU is 5.4x faster than C++ baseline",
+      "Mind CPU is 12.3x faster than Python",
+      "Mind CPU achieves 99% of CUDA GPU throughput",
+      "CUDA GPU is 5.4x faster than C++ baseline",
+      "All implementations produce identical checksums (deterministic)"
+    ]
+  }
+}

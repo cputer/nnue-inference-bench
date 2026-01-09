@@ -1,97 +1,94 @@
 # Benchmark Methodology
 
-This document describes the benchmark tiers and methodology used in nnue-inference-bench.
-
-## Overview
-
-The benchmark measures NNUE neural network inference performance for chess position evaluation.
-Two tiers are provided for different measurement granularities.
+This document defines the benchmark tiers, metrics, and reproducibility requirements.
 
 ## Benchmark Tiers
 
-### Tier A: Micro Benchmark (Pure Inference)
+### Tier A — Micro (Kernel Only)
 
-Measures only the forward pass computation, excluding all I/O and preprocessing.
+Measures pure inference kernel performance, excluding I/O and feature extraction.
 
-- **Scope**: Forward pass kernel only
-- **Features**: Pre-extracted before timing
-- **Model**: Pre-loaded in memory
-- **Metric**: nanoseconds per position (ns/pos)
-- **Use case**: Comparing inference implementations
+- **Input**: Pre-extracted features already in memory
+- **Measured**: Forward pass only (sparse accumulation + dense layers)
+- **Excludes**: Model loading, feature extraction, position parsing
 
-### Tier B: End-to-End Benchmark
+Use case: Comparing kernel implementations (CUDA vs Mind GPU vs CPU SIMD)
 
-Measures the complete pipeline including model loading and feature extraction.
+### Tier B — End-to-End
 
-- **Scope**: Full pipeline (load + extract + inference)
-- **Model**: Loaded fresh each iteration
-- **Metric**: milliseconds per batch (ms/batch), positions per second (pos/s)
-- **Use case**: Realistic application performance
+Measures complete inference pipeline including feature extraction.
 
-## Measurement Protocol
+- **Input**: Board positions (piece placement + side-to-move)
+- **Measured**: Feature extraction + forward pass
+- **Excludes**: Model loading (amortized across batch)
 
-1. **Warmup**: Multiple iterations to stabilize caches and JIT
-2. **Measured runs**: N iterations with timing
-3. **Statistics**: p50 (median), p95 (tail latency), mean
-4. **Checksum**: Deterministic output verification
+Use case: Real-world throughput comparison
+
+## Required Metrics
+
+Every benchmark row MUST report:
+
+| Metric | Description | Example |
+|--------|-------------|---------|
+| `implementation` | Code path being measured | `Python reference`, `Mind CPU`, `CUDA DLL` |
+| `device` | Hardware target | `CPU`, `GPU` |
+| `tier` | Benchmark tier | `A` or `B` |
+| `batch` | Positions per batch | `1000` |
+| `warmup` | Warmup iterations | `10` |
+| `iters` | Measured iterations | `50` |
+| `p50_ms` | Median batch time | `2.245` |
+| `p95_ms` | 95th percentile batch time | `2.793` |
+| `throughput` | Positions per second | `445345` |
+| `checksum` | Deterministic output hash | `0x6C1B4100` |
+
+## Checksum Requirement
+
+All implementations MUST produce identical checksums for the same input positions.
+
+```
+Checksum algorithm:
+1. For each position, get float32 evaluation score
+2. Quantize: int32_value = round(score * 10000)
+3. XOR all int32 values together
+4. Report as hex: 0x{checksum:08X}
+```
+
+If checksums don't match, the implementation is WRONG, not just "different."
 
 ## Reproducibility
 
-- Fixed random seed for position generation (default: 42)
-- Deterministic checksum computed from evaluation outputs
-- Raw timing data saved in `bench/results/raw/`
+### Seed Consistency
 
-## Device Support
+All benchmarks use `seed=42` for position generation. Same seed = same positions = same checksum.
 
-| Device | Status | Notes |
-|--------|--------|-------|
-| CPU (Python/NumPy) | Available | Reference implementation |
-| GPU (CUDA) | Blocked | Requires CUDA toolkit + compiled kernels |
+### Hardware Reporting
 
-## Running Benchmarks
+Results JSON must include:
+- CPU model
+- GPU model (if applicable)
+- OS and version
+- Python/compiler version
 
-```bash
-# Full benchmark (all tiers, all devices)
-python bench/runner.py
+### Canonical Output
 
-# CPU only, Tier B
-python bench/runner.py --device cpu --batch 1000 --iters 20
+Results are stored in `bench/results/LATEST_NNUE.json` with full metadata.
 
-# Quick smoke test
-python bench/runner.py --batch 100 --warmup 2 --iters 3
+## Implementation Status
+
+| Implementation | Tier A | Tier B | Checksum Verified |
+|----------------|--------|--------|-------------------|
+| Python reference (CPU) | — | ✅ | ✅ 0x6C1B4100 |
+| C++ baseline (CPU) | — | ✅ | ✅ 0x6C1B4100 |
+| CUDA DLL (GPU) | — | ✅ | ✅ 0x6C1B4100 |
+| Mind CPU | — | 🔲 | 🔲 |
+| Mind GPU (MIC) | — | 🔲 | 🔲 |
+
+## Winner Determination
+
+The "winner" is determined by **throughput at Tier B** with matching checksum.
+
+```
+Winner = max(throughput) WHERE checksum = reference_checksum
 ```
 
-## JSON Schema
-
-Results are saved to `bench/results/LATEST_NNUE.json` with this structure:
-
-```json
-{
-  "meta": {
-    "timestamp_utc": "...",
-    "model_path": "...",
-    "model_sha256": "...",
-    "system": {...}
-  },
-  "config": {
-    "batch_size": 1000,
-    "warmup_iters": 5,
-    "measured_iters": 20,
-    "seed": 42
-  },
-  "results": {
-    "device": "cpu",
-    "p50_batch_ms": 35.0,
-    "p95_batch_ms": 37.0,
-    "throughput_pos_per_s": 28000,
-    "checksum": "0x6C1B4100"
-  }
-}
-```
-
-## Fairness Rules
-
-- Do not compare Tier A with Tier B (different scopes)
-- Always report both p50 and p95 for latency
-- Include checksum to verify correctness
-- Document system configuration
+No checksum match = disqualified.
