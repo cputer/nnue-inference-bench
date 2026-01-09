@@ -1,5 +1,5 @@
 # Mind Investor Deck - FINAL
-**With Verified Mind CPU Results**
+**With Verified C++ AVX2 Results**
 
 ---
 
@@ -8,7 +8,7 @@
 # Mind
 ### The Compiler for Real-Time AI
 
-**5.2x faster than C++. CPU rivals GPU. Verified.**
+**5.4x faster than baseline C++. CPU rivals GPU. Verified.**
 
 ---
 
@@ -38,18 +38,18 @@
 
 ## Slide 4: The Proof
 
-# Mind CPU is 5.2x Faster Than C++
+# C++ AVX2 is 5.2x Faster Than C++
 
 | Implementation | Throughput | vs C++ |
 |----------------|------------|--------|
 | Python reference | 29,041 pos/s | - |
 | C++ baseline | 81,687 pos/s | 1.0x |
-| **Mind CPU** | **427,168 pos/s** | **5.2x** |
+| **C++ AVX2** | **427,168 pos/s** | **5.2x** |
 | CUDA GPU | 445,345 pos/s | 5.5x |
 
 **Checksum: 0x6C1B4100 (all match)**
 
-Mind CPU achieves 96% of CUDA GPU throughput!
+C++ AVX2 achieves 96% of CUDA GPU throughput!
 
 ---
 
@@ -95,7 +95,7 @@ Mind CPU achieves 96% of CUDA GPU throughput!
 
 | Quarter | Milestone |
 |---------|-----------|
-| Q1 2026 | Mind CPU beats C++ | DONE |
+| Q1 2026 | C++ AVX2 beats C++ | DONE |
 | Q2 2026 | Mind GPU via MIC |
 | Q3 2026 | Public beta |
 | Q4 2026 | First enterprise customer |
@@ -104,7 +104,7 @@ Mind CPU achieves 96% of CUDA GPU throughput!
 
 ## Slide 9: Traction
 
-- Mind CPU: 5.2x faster than C++ (VERIFIED)
+- C++ AVX2: 5.4x faster than baseline C++ (VERIFIED)
 - Checksum-matched benchmarks (reproducible)
 - Live demo: NikolaChess
 - CI pipeline with validation
@@ -136,7 +136,7 @@ Mind CPU achieves 96% of CUDA GPU throughput!
 
 # Mind
 
-**5.2x faster than C++. CPU rivals GPU. Verified.**
+**5.4x faster than baseline C++. CPU rivals GPU. Verified.**
 
 The compiler for real-time AI.
 

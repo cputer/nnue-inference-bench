@@ -143,7 +143,7 @@ def run_cuda_gpu(model, positions):
 
 def run_cpp_simd():
     """Run C++ SIMD (Mind-equivalent) benchmark."""
-    print("Running C++ SIMD (Mind CPU) benchmark...")
+    print("Running C++ SIMD (C++ AVX2) benchmark...")
 
     exe = Path(__file__).parent.parent / "native-cpp" / "build" / "bench_simd.exe"
     model = Path(__file__).parent.parent / "models" / "nikola_d12v2_gold.nknn"
@@ -257,13 +257,13 @@ def main():
             if not valid:
                 all_valid = False
 
-        # C++ SIMD (Mind CPU)
+        # C++ SIMD (C++ AVX2)
         simd_results = run_cpp_simd()
         if "error" not in simd_results:
-            valid, msg = validate_checksum(simd_results, "Mind CPU")
+            valid, msg = validate_checksum(simd_results, "C++ AVX2")
             simd_results["checksum_valid"] = valid
             results["results"].append(simd_results)
-            print(f"  Mind CPU (SIMD): {simd_results.get('throughput_pos_per_s', 'N/A')} pos/s, checksum {msg}")
+            print(f"  C++ AVX2 (SIMD): {simd_results.get('throughput_pos_per_s', 'N/A')} pos/s, checksum {msg}")
             if not valid:
                 all_valid = False
 

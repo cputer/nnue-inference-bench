@@ -149,7 +149,7 @@ int main(int argc, char* argv[]) {
     uint32_t checksum = compute_checksum_md5(all_evals);
     
     std::cout << "{" << std::endl;
-    std::cout << "  \"implementation\": \"Mind CPU (SIMD)\"," << std::endl;
+    std::cout << "  \"implementation\": \"C++ AVX2 (SIMD)\"," << std::endl;
     std::cout << "  \"device\": \"CPU\"," << std::endl;
     std::cout << "  \"tier\": \"B\"," << std::endl;
     std::cout << "  \"batch_size\": " << batch_size << "," << std::endl;

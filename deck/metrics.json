@@ -34,7 +34,7 @@
         "speedup_vs_python": 2.29
       },
       {
-        "implementation": "Mind CPU (SIMD)",
+        "implementation": "C++ AVX2 (SIMD)",
         "device": "CPU",
         "p50_ms": 2.3,
         "throughput_pos_per_s": 438712,
@@ -56,10 +56,10 @@
   },
   "key_claims": {
     "verified": [
-      "Mind CPU is 5.4x faster than C++ baseline",
-      "Mind CPU is 12.3x faster than Python",
-      "Mind CPU achieves 99% of CUDA GPU throughput",
-      "CUDA GPU is 5.4x faster than C++ baseline",
+      "C++ AVX2 is 5.4x faster than baseline C++",
+      "C++ AVX2 is 12.3x faster than Python",
+      "C++ AVX2 achieves 99% of CUDA GPU throughput",
+      "CUDA GPU is 5.4x faster than baseline C++",
       "All implementations produce identical checksums (deterministic)"
     ]
   }

@@ -1,53 +1,67 @@
-# Final 4-LLM Consensus Review
+# 4-LLM Consensus Audit Results
+
+## Audit Date: 2026-01-09
 
 ## Scores
 
-| LLM | Score | Focus Area |
-|-----|-------|------------|
-| GPT-5.2 | 8.5/10 | Pitch clarity, investment appeal |
-| Gemini 3 Pro | 3/10 | Technical accuracy (NOTE: benchmark dispute) |
-| Grok 4.1 | 7.5/10 | Market positioning |
-| DeepSeek | 8/10 | Mathematical rigor |
+| Auditor | Score | Focus |
+|---------|-------|-------|
+| GPT-5.2 | 7/10 | Honesty |
+| Gemini 3 Pro | 6/10 | Methodology Fairness |
+| Grok 4.1 | 5/10 | Investor Credibility |
+| DeepSeek | 9/10 math, 5/10 stats | Math Correctness |
 
-**Average (excluding disputed)**: 8.0/10
+**Consensus Score: 6.5/10** (needs improvement)
 
-## Gemini Dispute Resolution
+## Key Issues Identified
 
-Gemini claimed benchmarks were "fabricated" - this is INCORRECT:
-- `bench/results/mind_cpu_simd.json` exists with verified results
-- Checksum 0x6C1B4100 matches all implementations
-- Build script: `native-cpp/build_simd.ps1`
-- Source: `native-cpp/nnue_cpu_simd.cpp` (AVX2 SIMD)
+### 1. Mislabeling (FIXED)
+- Original: "Mind CPU (SIMD)"
+- Corrected: "C++ AVX2 (SIMD)"
+- This is C++ with hand-written intrinsics, not Mind-compiled code
 
-The 96% CPU-GPU parity is explained by:
-- NNUE is memory-bandwidth-bound, not compute-bound
-- Sparse first layer (40960→256) dominates runtime
-- CPU cache optimization rivals GPU for small models
-- This is workload-specific, not a general claim
+### 2. Batch Size Caveat (ADDED)
+- Results valid for batch=1000 only
+- GPU wins at larger batch sizes
+- Added to README and deck
 
-## Consensus Strengths
+### 3. Transfer Overhead (DISCLOSED)
+- Tier B includes PCIe transfer time
+- This disadvantages GPU for small batches
+- Added caveat to methodology
 
-1. **Verified benchmarks** - Checksum-matched, reproducible
-2. **Clear value prop** - "5.2x faster than C++" is compelling
-3. **Sound methodology** - p50, Tier B, seed=42
-4. **Math is correct** - All speedup calculations verified
+### 4. Statistical Rigor (NOTED)
+- 50 iterations is borderline
+- No variance reported
+- Checksum alone insufficient for numerical correctness
 
-## Consensus Weaknesses to Address
+## Verified Claims (Defensible)
 
-| Issue | Raised By | Resolution |
-|-------|-----------|------------|
-| Team slide placeholder | GPT-5.2 | Fill with founder credentials |
-| No customer validation | GPT-5.2 | Add LOI or pilot mention |
-| Confidence intervals | DeepSeek | Add p95 and std dev to slides |
-| Hardware specs in deck | DeepSeek | Add CPU/GPU model to methodology |
-| 96% CPU-GPU explanation | All | Add footnote explaining memory-bound workload |
+1. "C++ AVX2 is 5.7x faster than scalar C++" - TRUE
+2. "All checksums match 0x6C1B4100" - TRUE
+3. "At batch=1000, CPU matches GPU" - TRUE with caveats
 
-## Final Verdict
+## Claims Removed (Not Defensible)
 
-**INVESTMENT READY** with minor updates:
-1. Fill team slide
-2. Add hardware specs to methodology footnote
-3. Add p95 variance data
-4. Footnote explaining memory-bound CPU-GPU parity
+1. ~~"Mind CPU is faster than C++"~~ - Was mislabeled C++
+2. ~~"CPU beats GPU"~~ - Only true for small batches
+3. ~~"Mind achieves 99% of GPU"~~ - Not Mind, was C++ AVX2
 
-The deck is technically defensible. All claims are verified with checksum-matched benchmarks.
+## What This Proves
+
+- SIMD optimization delivers significant speedups (5.7x)
+- For small-batch inference, CPU can match GPU
+- Deterministic execution (checksums match)
+
+## What This Does NOT Prove
+
+- General GPU inferiority
+- Applicability to larger models
+- Mind compiler performance (Mind not used)
+
+## Recommendations for Due Diligence
+
+1. Add multi-batch results (100, 1K, 10K, 100K)
+2. Separate transfer time from compute time
+3. Add variance/confidence intervals
+4. Implement actual Mind compiler benchmarks

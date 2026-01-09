@@ -1,5 +1,5 @@
-// nnue_cpu_simd.cpp - SIMD-optimized NNUE inference (Mind-equivalent performance)
-// This shows what Mind's auto-vectorization would produce
+// nnue_cpu_simd.cpp - SIMD-optimized NNUE inference (optimized SIMD)
+// This shows AVX2 SIMD optimization
 
 #include "nnue_cpu.h"
 #include <immintrin.h>  // AVX2
