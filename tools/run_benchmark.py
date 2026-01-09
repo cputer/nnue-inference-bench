@@ -195,20 +195,36 @@ def run_cpp_baseline():
 
 
 def run_mind_cpu():
-    """Run Mind CPU benchmark (requires mindc compiler)."""
+    """Run Mind CPU benchmark (requires mind compiler)."""
     print("Checking Mind CPU benchmark...")
     
-    # Check if mindc is available
+    # Check if mind compiler is available
     import shutil
-    mindc = shutil.which("mindc")
+    mind_exe = shutil.which("mind")
     
-    if not mindc:
+    # Also check known install locations
+    if not mind_exe:
+        known_paths = [
+            Path.home() / "projects" / "mind-lang" / "target" / "release" / "mind.exe",
+            Path.home() / "projects" / "mind-lang" / "target" / "debug" / "mind.exe",
+            Path.home() / ".cargo" / "bin" / "mind.exe",
+            Path("C:/Program Files/Mind/bin/mind.exe"),
+        ]
+        for p in known_paths:
+            if p.exists():
+                mind_exe = str(p)
+                break
+    
+    if not mind_exe:
         return {
             "implementation": "Mind CPU",
             "status": "blocked",
-            "blocked_reason": "mindc compiler not installed",
-            "note": "Install Mind compiler from https://mind-lang.dev to enable"
+            "blocked_reason": "mind compiler not found",
+            "searched": ["PATH", "~/projects/mind-lang/target/release/", "~/.cargo/bin/"],
+            "note": "Build Mind from https://github.com/cputer/mind or add to PATH"
         }
+    
+    print(f"  Found Mind compiler: {mind_exe}")
     
     # Mind source files
     mind_dir = Path(__file__).parent.parent / "mind-cpu"
@@ -223,13 +239,30 @@ def run_mind_cpu():
     build_dir = mind_dir / "build"
     build_dir.mkdir(exist_ok=True)
     
+    # Check Mind compiler capabilities
+    try:
+        result = subprocess.run([mind_exe, "--help"], capture_output=True, text=True, timeout=10)
+        if "eval" in result.stdout and "compile" not in result.stdout.lower():
+            return {
+                "implementation": "Mind CPU",
+                "status": "blocked",
+                "blocked_reason": "Mind is interpreter-only (no native compilation yet)",
+                "mind_version": subprocess.run([mind_exe, "--version"], capture_output=True, text=True).stdout.strip(),
+                "note": "Mind currently supports eval/repl only, native codegen not implemented"
+            }
+    except Exception as e:
+        return {
+            "implementation": "Mind CPU",
+            "status": "blocked",
+            "blocked_reason": f"Mind check failed: {e}"
+        }
+    
+    # If we get here, Mind has compile support - try to compile
     print("Compiling Mind CPU benchmark...")
     try:
-        # Compile Mind sources
         result = subprocess.run(
-            [mindc, "-O3", "-target", "native", "-simd", "avx2",
-             "bench_main.mind", "-o", str(build_dir / "mind_nnue_bench.exe"),
-             str(mind_dir / "nnue_model.mind"), str(mind_dir / "nnue_infer.mind")],
+            [mind_exe, "compile", "-o", str(build_dir / "mind_nnue_bench.exe"),
+             str(mind_dir / "bench_main.mind")],
             cwd=str(mind_dir),
             capture_output=True, text=True, timeout=120
         )
@@ -350,7 +383,7 @@ def main():
             if not valid:
                 all_valid = False
 
-        # Mind CPU (requires mindc compiler)
+        # Mind CPU (requires mind compiler)
         mind_results = run_mind_cpu()
         results["results"].append(mind_results)
         if mind_results.get("status") == "blocked":
