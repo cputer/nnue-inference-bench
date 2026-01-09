@@ -192,6 +192,89 @@ def run_cpp_baseline():
         return {"error": f"Failed to parse output: {result.stdout}"}
 
 
+
+
+def run_mind_cpu():
+    """Run Mind CPU benchmark (requires mindc compiler)."""
+    print("Checking Mind CPU benchmark...")
+    
+    # Check if mindc is available
+    import shutil
+    mindc = shutil.which("mindc")
+    
+    if not mindc:
+        return {
+            "implementation": "Mind CPU",
+            "status": "blocked",
+            "blocked_reason": "mindc compiler not installed",
+            "note": "Install Mind compiler from https://mind-lang.dev to enable"
+        }
+    
+    # Mind source files
+    mind_dir = Path(__file__).parent.parent / "mind-cpu"
+    if not mind_dir.exists():
+        return {
+            "implementation": "Mind CPU",
+            "status": "blocked",
+            "blocked_reason": "mind-cpu/ directory not found"
+        }
+    
+    # Build Mind binary
+    build_dir = mind_dir / "build"
+    build_dir.mkdir(exist_ok=True)
+    
+    print("Compiling Mind CPU benchmark...")
+    try:
+        # Compile Mind sources
+        result = subprocess.run(
+            [mindc, "-O3", "-target", "native", "-simd", "avx2",
+             "bench_main.mind", "-o", str(build_dir / "mind_nnue_bench.exe"),
+             str(mind_dir / "nnue_model.mind"), str(mind_dir / "nnue_infer.mind")],
+            cwd=str(mind_dir),
+            capture_output=True, text=True, timeout=120
+        )
+        if result.returncode != 0:
+            return {
+                "implementation": "Mind CPU",
+                "status": "blocked", 
+                "blocked_reason": f"Compilation failed: {result.stderr}"
+            }
+    except Exception as e:
+        return {
+            "implementation": "Mind CPU",
+            "status": "blocked",
+            "blocked_reason": f"Build error: {e}"
+        }
+    
+    # Run benchmark
+    exe = build_dir / "mind_nnue_bench.exe"
+    model = Path(__file__).parent.parent / "models" / "nikola_d12v2_gold.nknn"
+    
+    print("Running Mind CPU benchmark...")
+    result = subprocess.run(
+        [str(exe), "--model", str(model), "--batch", str(BATCH_SIZE),
+         "--warmup", str(WARMUP_ITERS), "--iters", str(MEASURED_ITERS), "--seed", str(SEED)],
+        capture_output=True, text=True, timeout=120
+    )
+    
+    if result.returncode != 0:
+        return {
+            "implementation": "Mind CPU",
+            "status": "blocked",
+            "blocked_reason": f"Runtime error: {result.stderr}"
+        }
+    
+    try:
+        data = json.loads(result.stdout)
+        data["status"] = "verified"
+        return data
+    except json.JSONDecodeError:
+        return {
+            "implementation": "Mind CPU",
+            "status": "blocked",
+            "blocked_reason": f"Invalid output: {result.stdout}"
+        }
+
 def validate_checksum(results, name, expected=REFERENCE_CHECKSUM):
     """Validate checksum matches reference."""
     if "error" in results:
@@ -267,6 +350,18 @@ def main():
             if not valid:
                 all_valid = False
 
+        # Mind CPU (requires mindc compiler)
+        mind_results = run_mind_cpu()
+        results["results"].append(mind_results)
+        if mind_results.get("status") == "blocked":
+            print(f"  Mind CPU: BLOCKED - {mind_results.get('blocked_reason', 'unknown')}")
+        elif "error" not in mind_results:
+            valid, msg = validate_checksum(mind_results, "Mind CPU")
+            mind_results["checksum_valid"] = valid
+            print(f"  Mind CPU: {mind_results.get('throughput_pos_per_s', 'N/A')} pos/s, checksum {msg}")
+            if not valid:
+                all_valid = False
+
     if args.device in ["gpu", "both", "all"]:
         # CUDA GPU
         gpu_results = run_cuda_gpu(model, positions)
@@ -292,7 +387,9 @@ def main():
     # Print summary
     print("\n=== BENCHMARK SUMMARY ===")
     for r in results["results"]:
-        if "error" not in r:
+        if r.get("status") == "blocked":
+            print(f"  {r['implementation']}: BLOCKED - {r.get('blocked_reason', 'unknown')}")
+        elif "error" not in r and "throughput_pos_per_s" in r:
             print(f"  {r['implementation']}: {r['throughput_pos_per_s']:,.0f} pos/s (checksum: {r['checksum']})")
 
     if all_valid:

@@ -35,6 +35,7 @@ python tools/smoke_cpu.py
 | C++ baseline | CPU | 1000 | 12.242 | 81,687 pos/s | 0x6C1B4100 | 1.0x |
 | **C++ AVX2 (SIMD)** | CPU | 1000 | **2.1** | **469,087 pos/s**** | 0x6C1B4100 | **5.4x faster** |
 | CUDA GPU | GPU | 1000 | 2.2 | 452,714 pos/s | 0x6C1B4100 | 5.4x faster |
+| Mind CPU | CPU | - | - | BLOCKED | - | mindc not installed |
 
 *Updated: 2026-01-08 | Model: nikola_d12v2_gold.nknn | RTX 4070 Laptop GPU*
 <!-- AUTO:BENCHMARK_END -->
